@@ -80,9 +80,9 @@ class TrainingStrategy(ABC):
         self.optimizer, self.lr_scheduler = None, None
 
         # Lightweight Validation
-        assert (
-            self.global_batch_size % self.per_device_batch_size == 0
-        ), "Per-device batch size must evenly divide global batch size!"
+        assert self.global_batch_size % self.per_device_batch_size == 0, (
+            "Per-device batch size must evenly divide global batch size!"
+        )
         self.grad_accumulation_steps = self.global_batch_size // self.per_device_batch_size // overwatch.world_size()
         if self.enable_mixed_precision_training:
             assert self.mixed_precision_dtype == torch.bfloat16, "Only BF16 mixed precision training is supported!"
@@ -314,8 +314,10 @@ class TrainingStrategy(ABC):
                     z_aug = torch.nn.functional.normalize(z_aug, dim=1)
                     logits = z @ z_aug.t() / 0.1
                     targets = torch.arange(z.size(0), device=z.device)
-                    info_nce = (torch.nn.functional.cross_entropy(logits, targets) +
-                                torch.nn.functional.cross_entropy(logits.t(), targets)) / 2
+                    info_nce = (
+                        torch.nn.functional.cross_entropy(logits, targets)
+                        + torch.nn.functional.cross_entropy(logits.t(), targets)
+                    ) / 2
                     loss = loss + info_nce
 
                 # Commit Loss =>> Backward!
@@ -338,7 +340,7 @@ class TrainingStrategy(ABC):
                 # mask = action_gt > action_tokenizer.action_token_begin_idx
 
                 # Mask out non-special tokens
-                mask = action_gt > 32000        
+                mask = action_gt > 32000
 
                 # Compute Accuracy
                 correct_preds = (action_preds == action_gt) & mask
@@ -352,7 +354,7 @@ class TrainingStrategy(ABC):
                     action_tokenizer.decode_token_ids_to_actions(action_gt[mask].cpu().numpy())
                 )
                 action_l1_loss = torch.nn.functional.l1_loss(continuous_actions_pred, continuous_actions_gt)
-                
+
                 # Commit Metrics
                 metrics.commit(action_accuracy=action_accuracy, l1_loss=action_l1_loss, update_step_time=True)
 
@@ -414,9 +416,8 @@ class TrainingStrategy(ABC):
                 progress.update()
                 progress.set_description(status)
 
-
     # === VLA Latent Action Training ===
-    
+
     def run_latent_action_training(
         self,
         vla_dataset: IterableDataset,
@@ -489,9 +490,7 @@ class TrainingStrategy(ABC):
                 action_preds = output.logits[:, self.vlm.vision_backbone.num_patches : -1].argmax(dim=2)
                 action_gt = batch["labels"][:, 1:].to(action_preds.device)
                 # Mask out non-special tokens
-                mask = action_gt > 32000      
-
-
+                mask = action_gt > 32000
 
                 # Compute Accuracy
                 correct_preds = (action_preds == action_gt) & mask
@@ -505,9 +504,9 @@ class TrainingStrategy(ABC):
                 #     action_tokenizer.decode_token_ids_to_actions(action_gt[mask].cpu().numpy())
                 # )
                 # action_l1_loss = torch.nn.functional.l1_loss(continuous_actions_pred, continuous_actions_gt)
-                
-                # l1 loss omitted for latent action 
-                action_l1_loss = torch.tensor(0.)
+
+                # l1 loss omitted for latent action
+                action_l1_loss = torch.tensor(0.0)
                 # Commit Metrics
                 metrics.commit(action_accuracy=action_accuracy, l1_loss=action_l1_loss, update_step_time=True)
 
@@ -531,7 +530,7 @@ class TrainingStrategy(ABC):
                             # action_l1_loss_ds = torch.nn.functional.l1_loss(
                             #     continuous_actions_pred_ds, continuous_actions_gt_ds
                             # )
-                            action_l1_loss_ds = torch.tensor(0.)
+                            action_l1_loss_ds = torch.tensor(0.0)
                             metrics.commit_for_dataset(
                                 dataset_name=ds.decode(), action_accuracy=action_accuracy_ds, l1_loss=action_l1_loss_ds
                             )
