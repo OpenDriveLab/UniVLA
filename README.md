@@ -212,6 +212,12 @@ torchrun --standalone --nnodes 1 --nproc-per-node 8 main.py fit \
 > [!NOTE]
 > For pretraining UniVLA only on BridgeV2 or Human (Ego4D) data, please modify ```vla.type``` to ```prism-dinosiglip-224px+mx-bridge(human)``` correspondingly. Detailed setups can be found in ```./prismatic/conf/vla.py```.
 
+The `--pretrain_vlm` argument can be either a local directory containing
+`config.json` and the checkpoint to load or a model name returned by
+`prismatic.available_model_names()`. When a model name (e.g.
+`prism-dinosiglip-224px+7b`) is specified, the weights will be automatically
+downloaded from the Hugging Face Hub.
+
 ```bash
 ### Experiment on a 32-GPU cluster
 GPUS_PER_NODE=8  

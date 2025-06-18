@@ -35,7 +35,7 @@ class TrainConfig:
     vla: VLAConfig = field(
         default_factory=VLAConfig.get_choice_class(VLARegistry.DINOSIGLIP_224PX_MX_BRIDGE.vla_id)
     )
-    pretrain_vlm: str = '/path/to/your/prism-dinosiglip-224px_7b'
+    pretrain_vlm: str = 'prism-dinosiglip-224px+7b'
     lam_path: str = "latent_action_model/logs/task_centric_lam_stage2/epoch=0-step=200000.ckpt"
 
     # LAM setting
@@ -68,7 +68,7 @@ class TrainConfig:
     seed: int = 42                                                  # Random seed (for reproducibility)
 
     # HF Hub Credentials (for any gated models)
-    hf_token: Union[str, Path] = ''                
+    hf_token: Union[str, Path] = ''
 
     # Tracking Parameters
     trackers: Tuple[str, ...] = ("jsonl", "wandb")                  # Trackers to initialize (if W&B, add config!)
@@ -118,7 +118,7 @@ def train(cfg: TrainConfig) -> None:
     if cfg.image_aug:
         cfg.run_id += "--image_aug"
 
-    cfg.run_id += '-Latent-Action-Pretraining'
+    cfg.run_id += "-Latent-Action-Pretraining"
     # Start =>> Build Directories and Set Randomness
     overwatch.info('"Do or do not; there is no try."', ctx_level=1)
     # hf_token = cfg.hf_token.read_text().strip() if isinstance(cfg.hf_token, Path) else os.environ[cfg.hf_token]
@@ -182,7 +182,7 @@ def train(cfg: TrainConfig) -> None:
     overwatch.info(
         f"# Parameters (in millions): {num_params / 10**6:.3f} Total, {num_trainable_params / 10**6:.3f} Trainable"
     )
-    
+
     from latent_action_model.genie.modules.lam import ControllableDINOLatentActionModel
 
     latent_action_model = ControllableDINOLatentActionModel(
@@ -194,10 +194,10 @@ def train(cfg: TrainConfig) -> None:
         enc_blocks=cfg.lam_enc_blocks,
         dec_blocks=cfg.lam_dec_blocks,
         num_heads=cfg.lam_num_heads,
-        dropout=0.,
+        dropout=0.0,
     )
 
-    lam_ckpt = torch.load(cfg.lam_path)['state_dict']
+    lam_ckpt = torch.load(cfg.lam_path)["state_dict"]
     new_ckpt = {}
     for key in lam_ckpt.keys():
         new_ckpt[key.replace("lam.", "")] = lam_ckpt[key]
@@ -222,8 +222,8 @@ def train(cfg: TrainConfig) -> None:
         aug_transform=aug_transform,
     )
 
-    special_tokens_dict = {'additional_special_tokens': [f'<ACT_{i}>' for i in range(cfg.codebook_size)]}
-    num_added_toks = action_tokenizer.add_special_tokens(special_tokens_dict)
+    special_tokens_dict = {"additional_special_tokens": [f"<ACT_{i}>" for i in range(cfg.codebook_size)]}
+    action_tokenizer.add_special_tokens(special_tokens_dict)
 
     # Save dataset statistics for de-normalization at inference time
     if overwatch.is_rank_zero():
