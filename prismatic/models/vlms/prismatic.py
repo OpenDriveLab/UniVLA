@@ -113,9 +113,9 @@ class PrismaticVLM(VLM):
 
         # Load from Checkpoint (Custom --> should load both *projector* and *llm* weights)
         model_state_dict = torch.load(pretrained_checkpoint, map_location="cpu")["model"]
-        assert (
-            "projector" in model_state_dict and "llm_backbone" in model_state_dict
-        ), "PrismaticVLM `from_pretrained` expects checkpoint with keys for `projector` AND `llm_backbone`!"
+        assert "projector" in model_state_dict and "llm_backbone" in model_state_dict, (
+            "PrismaticVLM `from_pretrained` expects checkpoint with keys for `projector` AND `llm_backbone`!"
+        )
 
         vlm.projector.load_state_dict(model_state_dict["projector"])
         vlm.llm_backbone.load_state_dict(model_state_dict["llm_backbone"])

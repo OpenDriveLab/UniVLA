@@ -222,9 +222,9 @@ def train(cfg: TrainConfig) -> None:
         aug_transform=aug_transform,
     )
 
+    action_tokenizer.add_special_tokens({"additional_special_tokens": [f"<ACT_{i}>" for i in range(cfg.codebook_size)]})
     special_tokens_dict = {"additional_special_tokens": [f"<ACT_{i}>" for i in range(cfg.codebook_size)]}
     action_tokenizer.add_special_tokens(special_tokens_dict)
-
     # Save dataset statistics for de-normalization at inference time
     if overwatch.is_rank_zero():
         save_dataset_statistics(vla_dataset.dataset_statistics, run_dir)
