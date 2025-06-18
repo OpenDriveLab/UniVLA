@@ -41,6 +41,7 @@ class PaddedCollatorForLanguageModeling:
     def __call__(self, instances: Sequence[Dict[str, torch.Tensor]]) -> Dict[str, torch.Tensor]:
         input_ids, labels = tuple([instance[key] for instance in instances] for key in ("input_ids", "labels"))
         pixel_values = [instance["pixel_values"] for instance in instances]
+        pixel_values_aug = [instance.get("pixel_values_aug") for instance in instances]
 
         # For now, we only support Tokenizers with `padding_side = "right"` during Training (but plan to extend!)
         #   => Handle padding via RNN Utils => `pad_sequence`
@@ -125,15 +126,26 @@ class PaddedCollatorForActionPrediction:
         # Stack all `pixel_values` --> depending on type is torch.Tensor or Dict[str, torch.Tensor]
         if isinstance(pixel_values[0], torch.Tensor):
             pixel_values = torch.stack(pixel_values)
+            if pixel_values_aug[0] is not None:
+                pixel_values_aug = torch.stack(pixel_values_aug)
+            else:
+                pixel_values_aug = pixel_values.clone()
         elif isinstance(pixel_values[0], dict):
             pixel_values = {
                 k: torch.stack([pixel_values[idx][k] for idx in range(len(input_ids))]) for k in pixel_values[0]
             }
+            if pixel_values_aug[0] is not None:
+                pixel_values_aug = {
+                    k: torch.stack([pixel_values_aug[idx][k] for idx in range(len(input_ids))]) for k in pixel_values_aug[0]
+                }
+            else:
+                pixel_values_aug = {k: v.clone() for k, v in pixel_values.items()}
         else:
             raise ValueError(f"Unsupported `pixel_values` type = {type(pixel_values)}")
 
         output = dict(
             pixel_values=pixel_values,
+            pixel_values_aug=pixel_values_aug,
             input_ids=input_ids,
             attention_mask=attention_mask,
             labels=labels,

@@ -7,7 +7,7 @@ format to OpenVLA, IterableDataset shim.
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Tuple, Type
+from typing import Any, Dict, Tuple, Type, Optional, Callable
 
 import random
 import numpy as np
@@ -78,7 +78,7 @@ class RLDSBatchTransform:
         if not self.predict_stop_token:
             labels[-1] = IGNORE_INDEX
 
-        return dict(pixel_values=pixel_values, input_ids=input_ids, labels=labels, dataset_name=dataset_name)
+        return dict(pixel_values=pixel_values, pixel_values_aug=pixel_values_aug, input_ids=input_ids, labels=labels, dataset_name=dataset_name)
 
 
 @dataclass
@@ -174,9 +174,23 @@ class RLDSBatchTransformLIBERO:
         # img = Image.fromarray(rlds_batch["observation"]["image_primary"][0])
         lang = rlds_batch["task"]["language_instruction"].decode().lower()
 
-        img = Image.fromarray(rlds_batch["observation"]["image_primary"][0])
-        img_k = Image.fromarray(rlds_batch["observation"]["image_primary"][-1])
+        obs_frames = rlds_batch["observation"]["image_primary"]
+        img = Image.fromarray(obs_frames[0])
+        img_k = Image.fromarray(obs_frames[-1])
         pixel_values = self.image_transform(img)
+
+        # Create augmented view with brightness/contrast jitter and optional frame shift
+        if self.aug_transform is not None:
+            shift_idx = 0
+            if len(obs_frames) > 1:
+                shift = random.choice([-1, 0, 1])
+                shift_idx = max(0, min(len(obs_frames) - 1, shift))
+            img_aug = Image.fromarray(obs_frames[shift_idx])
+            img_aug = self.aug_transform(img_aug)
+            pixel_values_aug = self.image_transform(img_aug)
+            pixel_values_aug = pixel_values_aug + 0.01 * torch.randn_like(pixel_values_aug)
+        else:
+            pixel_values_aug = pixel_values.clone()
 
         with torch.no_grad():
             initial_pixel_values = self.image_transform_lam(img)
@@ -225,17 +239,28 @@ class RLDSBatchTransformLatentAction:
     image_transform_lam: ImageTransform
     prompt_builder_fn: Type[PromptBuilder]
     predict_stop_token: bool = True
+    aug_transform: Optional[Callable] = None
 
     def __call__(self, rlds_batch: Dict[str, Any]) -> Dict[str, Any]:
         """Converts a RLDS batch to the format expected by the OpenVLA collator/models."""
         dataset_name, action = rlds_batch["dataset_name"], rlds_batch["action"][0]
-        # img = Image.fromarray(rlds_batch["observation"]["image_primary"][0])
         lang = rlds_batch["task"]["language_instruction"].decode().lower()
 
-        # print(len(rlds_batch["observation"]["image_primary"]))
-        img = Image.fromarray(rlds_batch["observation"]["image_primary"][0])
-        img_k = Image.fromarray(rlds_batch["observation"]["image_primary"][-1])
+        obs_frames = rlds_batch["observation"]["image_primary"]
+        img = Image.fromarray(obs_frames[0])
+        img_k = Image.fromarray(obs_frames[-1])
         pixel_values = self.image_transform(img)
+
+        if self.aug_transform is not None:
+            shift_idx = 0
+            if len(obs_frames) > 1:
+                shift = random.choice([-1, 0, 1])
+                shift_idx = max(0, min(len(obs_frames) - 1, shift))
+            img_aug = Image.fromarray(obs_frames[shift_idx])
+            img_aug = self.aug_transform(img_aug)
+            pixel_values_aug = self.image_transform(img_aug) + 0.01 * torch.randn_like(pixel_values)
+        else:
+            pixel_values_aug = pixel_values.clone()
 
         with torch.no_grad():
             initial_pixel_values = self.image_transform_lam(img)
@@ -274,7 +299,7 @@ class RLDSBatchTransformLatentAction:
             labels[-1] = IGNORE_INDEX
 
 
-        return dict(pixel_values=pixel_values, input_ids=input_ids, labels=labels, dataset_name=dataset_name)
+        return dict(pixel_values=pixel_values, pixel_values_aug=pixel_values_aug, input_ids=input_ids, labels=labels, dataset_name=dataset_name)
 
 
 
