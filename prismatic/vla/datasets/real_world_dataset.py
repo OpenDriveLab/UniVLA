@@ -36,7 +36,7 @@ class HDF5Dataset(torch.utils.data.Dataset):
                 min_window_size = 16,
                 max_window_size = 16,
                 image_transform = None,
-                other_config=()) -> None:,
+                other_config=()) -> None:
         
         super(HDF5Dataset).__init__()
         self.episode_ids = episode_ids
