@@ -48,11 +48,13 @@ class RLDSBatchTransform:
     image_transform: ImageTransform
     prompt_builder_fn: Type[PromptBuilder]
     predict_stop_token: bool = True
+    aug_transform: Optional[Callable] = None
 
     def __call__(self, rlds_batch: Dict[str, Any]) -> Dict[str, Any]:
         """Converts a RLDS batch to the format expected by the OpenVLA collator/models."""
         dataset_name, action = rlds_batch["dataset_name"], rlds_batch["action"][0]
-        img = Image.fromarray(rlds_batch["observation"]["image_primary"][0])
+        obs_frames = rlds_batch["observation"]["image_primary"]
+        img = Image.fromarray(obs_frames[0])
         lang = rlds_batch["task"]["language_instruction"].decode().lower()
 
         # Construct Chat-based Prompt =>> Input is default query + language instruction, output are the action tokens
@@ -72,6 +74,18 @@ class RLDSBatchTransform:
         #   =>> IMPORTANT :: IF WE'RE USING HF LLM.forward(..., labels=labels), SHIFTING HAPPENS _INSIDE_ MODEL!
         input_ids, labels = torch.tensor(input_ids), torch.tensor(labels)
         pixel_values = self.image_transform(img)
+
+        # Create augmented view with brightness/contrast jitter and optional frame shift
+        if self.aug_transform is not None:
+            shift_idx = 0
+            if len(obs_frames) > 1:
+                shift = random.choice([-1, 0, 1])
+                shift_idx = max(0, min(len(obs_frames) - 1, shift))
+            img_aug = Image.fromarray(obs_frames[shift_idx])
+            img_aug = self.aug_transform(img_aug)
+            pixel_values_aug = self.image_transform(img_aug) + 0.01 * torch.randn_like(pixel_values)
+        else:
+            pixel_values_aug = pixel_values.clone()
 
         # [CRITICAL] We do not want to take the loss for anything but the predicted action tokens!
         labels[: -(len(action) + 1)] = IGNORE_INDEX
