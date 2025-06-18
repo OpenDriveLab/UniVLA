@@ -207,6 +207,7 @@ def train(cfg: TrainConfig) -> None:
 
     # Get VLA Dataset & Collator
     overwatch.info(f"Creating VLA Open-X Dataset with Mixture `{cfg.vla.data_mix}`")
+    aug_transform = transforms.ColorJitter(brightness=0.2, contrast=0.2)
     vla_dataset, action_tokenizer, collator = get_latent_vla_dataset_and_collator(
         cfg.data_root_dir,
         cfg.vla.data_mix,
@@ -218,6 +219,7 @@ def train(cfg: TrainConfig) -> None:
         default_image_resolution=vlm.vision_backbone.default_image_resolution,
         shuffle_buffer_size=cfg.vla.shuffle_buffer_size,
         image_aug=cfg.image_aug,
+        aug_transform=aug_transform,
     )
 
     special_tokens_dict = {'additional_special_tokens': [f'<ACT_{i}>' for i in range(cfg.codebook_size)]}

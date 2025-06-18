@@ -67,11 +67,18 @@ class PrismaticVLM(VLM):
         else:
             raise ValueError(f"PrismaticVLM with `{arch_specifier = }` is not supported!")
 
+        # Projection for latent action embeddings used in InfoNCE
+        self.token_projector = torch.nn.Sequential(
+            torch.nn.Linear(llm_backbone.embed_dim, llm_backbone.embed_dim),
+            torch.nn.ReLU(),
+            torch.nn.Linear(llm_backbone.embed_dim, llm_backbone.embed_dim),
+        )
+
         # Trackers
         self.vision_backbone_requires_grad = False
 
         # Set Module Keys =>> used in Checkpoint Saving / Model Loading
-        self.all_module_keys = ["vision_backbone", "llm_backbone", "projector"]
+        self.all_module_keys = ["vision_backbone", "llm_backbone", "projector", "token_projector"]
         self.trainable_module_keys = []
 
         # === Generation Utilities ===
@@ -140,9 +147,10 @@ class PrismaticVLM(VLM):
             self.vision_backbone.requires_grad_(False)
             self.llm_backbone.requires_grad_(False)
             self.projector.requires_grad_(True)
+            self.token_projector.requires_grad_(True)
 
             # Add to `self.trainable_module_keys`
-            self.trainable_module_keys = ["projector"]
+            self.trainable_module_keys = ["projector", "token_projector"]
 
             # Update Trackers
             self.vision_backbone_requires_grad = False
@@ -156,9 +164,10 @@ class PrismaticVLM(VLM):
             self.vision_backbone.requires_grad_(False)
             self.llm_backbone.requires_grad_(True)
             self.projector.requires_grad_(True)
+            self.token_projector.requires_grad_(True)
 
             # Add to `self.trainable_module_keys`
-            self.trainable_module_keys = ["projector", "llm_backbone"]
+            self.trainable_module_keys = ["projector", "llm_backbone", "token_projector"]
 
             # Update Trackers
             self.vision_backbone_requires_grad = False
@@ -173,9 +182,10 @@ class PrismaticVLM(VLM):
             self.vision_backbone.requires_grad_(True)
             self.llm_backbone.requires_grad_(True)
             self.projector.requires_grad_(True)
+            self.token_projector.requires_grad_(True)
 
             # Add to `self.trainable_module_keys`
-            self.trainable_module_keys = ["vision_backbone", "projector", "llm_backbone"]
+            self.trainable_module_keys = ["vision_backbone", "projector", "llm_backbone", "token_projector"]
 
             # Update Trackers
             self.vision_backbone_requires_grad = True
@@ -189,13 +199,14 @@ class PrismaticVLM(VLM):
             self.vision_backbone.requires_grad_(False)
             self.projector.requires_grad_(False)
             self.llm_backbone.requires_grad_(False)
+            self.token_projector.requires_grad_(True)
 
             # Unfreeze final LLM layer
             for module in self.llm_backbone.last_layer_finetune_modules:
                 module.requires_grad_(True)
 
             # Add to `self.trainable_module_keys`
-            self.trainable_module_keys = ["llm_backbone"]
+            self.trainable_module_keys = ["llm_backbone", "token_projector"]
 
             # Update Trackers
             self.vision_backbone_requires_grad = False
@@ -212,13 +223,14 @@ class PrismaticVLM(VLM):
             self.vision_backbone.requires_grad_(True)
             self.projector.requires_grad_(True)
             self.llm_backbone.requires_grad_(False)
+            self.token_projector.requires_grad_(True)
 
             # Unfreeze final LLM layer
             for module in self.llm_backbone.last_layer_finetune_modules:
                 module.requires_grad_(True)
 
             # Add to `self.trainable_module_keys`
-            self.trainable_module_keys = ["vision_backbone", "projector", "llm_backbone"]
+            self.trainable_module_keys = ["vision_backbone", "projector", "llm_backbone", "token_projector"]
 
             # Update Trackers
             self.vision_backbone_requires_grad = True

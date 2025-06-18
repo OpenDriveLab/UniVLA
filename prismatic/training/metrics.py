@@ -246,6 +246,7 @@ class VLAMetrics:
             "loss": deque(maxlen=window_size),
             "l1_loss": deque(maxlen=window_size),
             "action_accuracy": deque(maxlen=window_size),
+            "info_nce_loss": deque(maxlen=window_size),
             "step_time": deque(maxlen=window_size),
             "lr": [],
         }
@@ -311,6 +312,7 @@ class VLAMetrics:
         loss_raw = torch.stack(list(self.state["loss_raw"])).mean().item()
         loss = torch.stack(list(self.state["loss"])).mean().item()
         l1_loss = torch.stack(list(self.state["l1_loss"])).mean().item()
+        info_nce_loss = torch.stack(list(self.state["info_nce_loss"])).mean().item()
         action_accuracy = torch.stack(list(self.state["action_accuracy"])).mean().item()
         step_time, lr = np.mean(list(self.state["step_time"])), self.state["lr"][-1]
         status = self.get_status(loss)
@@ -334,6 +336,7 @@ class VLAMetrics:
                 f"{prefix}/Epoch": self.epoch,
                 f"{prefix}/Loss": loss,
                 f"{prefix}/L1 Loss": l1_loss,
+                f"{prefix}/InfoNCE Loss": info_nce_loss,
                 f"{prefix}/Action Token Accuracy": action_accuracy,
                 f"{prefix}/Loss (Raw)": loss_raw,
                 f"{prefix}/Learning Rate": lr,
