@@ -3,10 +3,11 @@ data_utils.py
 
 General utilities and classes for facilitating data loading and collation.
 """
+
 import re
 import string
 from dataclasses import dataclass
-from typing import Callable, Dict, Sequence, Tuple, Any
+from typing import Callable, Dict, Sequence, Tuple
 
 import torch
 from torch.nn.utils.rnn import pad_sequence
@@ -41,7 +42,7 @@ class PaddedCollatorForLanguageModeling:
     def __call__(self, instances: Sequence[Dict[str, torch.Tensor]]) -> Dict[str, torch.Tensor]:
         input_ids, labels = tuple([instance[key] for instance in instances] for key in ("input_ids", "labels"))
         pixel_values = [instance["pixel_values"] for instance in instances]
-        pixel_values_aug = [instance.get("pixel_values_aug") for instance in instances]
+        pixel_values_aug = [instance.get("pixel_values_aug") for instance in instances]  # noqa: F841
 
         # For now, we only support Tokenizers with `padding_side = "right"` during Training (but plan to extend!)
         #   => Handle padding via RNN Utils => `pad_sequence`
@@ -137,7 +138,8 @@ class PaddedCollatorForActionPrediction:
             }
             if pixel_values_aug[0] is not None:
                 pixel_values_aug = {
-                    k: torch.stack([pixel_values_aug[idx][k] for idx in range(len(input_ids))]) for k in pixel_values_aug[0]
+                    k: torch.stack([pixel_values_aug[idx][k] for idx in range(len(input_ids))])
+                    for k in pixel_values_aug[0]
                 }
             else:
                 pixel_values_aug = {k: v.clone() for k, v in pixel_values.items()}
@@ -225,7 +227,6 @@ class PaddedCollatorForActionPrediction_CALVIN:
     pixel_values_dtype: torch.dtype = torch.float32
 
     def __call__(self, instances: Sequence[Dict[str, torch.Tensor]]) -> Dict[str, torch.Tensor]:
-        
         initial_pixel_values = [instance["initial_pixel_values"] for instance in instances]
         target_pixel_values = [instance["target_pixel_values"] for instance in instances]
 
@@ -237,16 +238,13 @@ class PaddedCollatorForActionPrediction_CALVIN:
                 target_pixel_values_hist.append(instance["target_pixel_values_hist"])
                 with_hist.append(torch.tensor(True))
             else:
-                with_hist.append(torch.tensor(False))     
-
-
+                with_hist.append(torch.tensor(False))
 
         pixel_values = [instance["pixel_values"] for instance in instances]
         if "dataset_name" in instances[0]:
             dataset_names = [instance["dataset_name"] for instance in instances]
         else:
             dataset_names = None
-
 
         # For low-level policy training
         actions = [instance["actions"] for instance in instances]
@@ -256,7 +254,6 @@ class PaddedCollatorForActionPrediction_CALVIN:
         proprio = torch.stack(proprio, dim=0)
 
         instructions = [instance["lang"] for instance in instances]
-
 
         # [Contract] For VLA Training =>> No "Unimodal" Data!
         assert all([pv is not None for pv in pixel_values]), "Invalid VLA Example with `pixel_values = None`!"
@@ -281,7 +278,7 @@ class PaddedCollatorForActionPrediction_CALVIN:
             # attention_mask=attention_mask,
             # labels=labels,
             actions=actions,
-            proprio=proprio
+            proprio=proprio,
         )
         if dataset_names is not None:
             output["dataset_names"] = dataset_names
@@ -293,7 +290,6 @@ class CollatorForLatentAction:
     pixel_values_dtype: torch.dtype = torch.float32
 
     def __call__(self, instances: Sequence[Dict[str, torch.Tensor]]) -> Dict[str, torch.Tensor]:
-        
         if "dataset_name" in instances[0]:
             dataset_names = [instance["dataset_name"] for instance in instances]
         else:
@@ -301,18 +297,18 @@ class CollatorForLatentAction:
 
         initial_pixel_values = [instance["initial_pixel_values"] for instance in instances]
         initial_pixel_values = torch.stack(initial_pixel_values)
-        
+
         target_pixel_values = [instance["target_pixel_values"] for instance in instances]
         target_pixel_values = torch.stack(target_pixel_values)
         pixel_values = torch.stack([initial_pixel_values, target_pixel_values], dim=1)
-
 
         action = [torch.from_numpy(instance["action"]) for instance in instances]
         action = torch.stack(action)
 
         # removing all punctuation in task instruction
-        task_instruction = [re.sub('[{}]'.format(string.punctuation),"",instance["task_instruction"]) for instance in instances]
-
+        task_instruction = [
+            re.sub("[{}]".format(string.punctuation), "", instance["task_instruction"]) for instance in instances
+        ]
 
         output = dict(
             videos=pixel_values,
@@ -330,7 +326,6 @@ class CollatorForMultiViewVideo:
     pixel_values_dtype: torch.dtype = torch.float32
 
     def __call__(self, instances: Sequence[Dict[str, torch.Tensor]]) -> Dict[str, torch.Tensor]:
-        
         if "dataset_name" in instances[0]:
             dataset_names = [instance["dataset_name"] for instance in instances]
         else:
@@ -338,27 +333,25 @@ class CollatorForMultiViewVideo:
 
         initial_pixel_values = [instance["initial_pixel_values"] for instance in instances]
         initial_pixel_values = torch.stack(initial_pixel_values)
-        
+
         target_pixel_values = [instance["target_pixel_values"] for instance in instances]
         target_pixel_values = torch.stack(target_pixel_values)
         pixel_values = torch.stack([initial_pixel_values, target_pixel_values], dim=1)
 
-
         initial_pixel_values_view2 = [instance["initial_pixel_values_view2"] for instance in instances]
         initial_pixel_values_view2 = torch.stack(initial_pixel_values_view2)
-        
+
         target_pixel_values_view2 = [instance["target_pixel_values_view2"] for instance in instances]
         target_pixel_values_view2 = torch.stack(target_pixel_values_view2)
         pixel_values_view2 = torch.stack([initial_pixel_values_view2, target_pixel_values_view2], dim=1)
-        
-
 
         action = [torch.from_numpy(instance["action"]) for instance in instances]
         action = torch.stack(action)
 
         # removing all punctuation in task instruction
-        task_instruction = [re.sub('[{}]'.format(string.punctuation),"",instance["task_instruction"]) for instance in instances]
-
+        task_instruction = [
+            re.sub("[{}]".format(string.punctuation), "", instance["task_instruction"]) for instance in instances
+        ]
 
         output = dict(
             videos=pixel_values,

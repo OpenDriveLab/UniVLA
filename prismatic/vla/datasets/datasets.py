@@ -5,11 +5,11 @@ Lightweight PyTorch Dataset Definition for wrapping RLDS TFDS Pipeline; just def
 format to OpenVLA, IterableDataset shim.
 """
 
+import random
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Tuple, Type, Optional, Callable
+from typing import Any, Callable, Dict, Optional, Tuple, Type
 
-import random
 import numpy as np
 import torch
 from PIL import Image
@@ -28,17 +28,26 @@ from prismatic.vla.datasets.rlds.utils.data_utils import NormalizationType
 IGNORE_INDEX = -100
 
 # From 3Hz to 5Hz control frequency
-datasets_with_lower_frequency = ['fractal20220817_data', 'toto', 'berkeley_autolab_ur5', 
-'nyu_franka_play_dataset_converted_externally_to_rlds', 
-'ucsd_kitchen_dataset_converted_externally_to_rlds', 
-'dlr_edan_shared_control_converted_externally_to_rlds', 'dobbe']
+datasets_with_lower_frequency = [
+    "fractal20220817_data",
+    "toto",
+    "berkeley_autolab_ur5",
+    "nyu_franka_play_dataset_converted_externally_to_rlds",
+    "ucsd_kitchen_dataset_converted_externally_to_rlds",
+    "dlr_edan_shared_control_converted_externally_to_rlds",
+    "dobbe",
+]
 
 # From 15Hz to 30 Hz control frequency
-datasets_with_higher_frequency = ['utaustin_mutex', 
-'iamlab_cmu_pickup_insert_converted_externally_to_rlds', 
-'austin_sailor_dataset_converted_externally_to_rlds', 
-'austin_sailor_dataset_converted_externally_to_rlds', 
-'toto', 'viola', 'droid']
+datasets_with_higher_frequency = [
+    "utaustin_mutex",
+    "iamlab_cmu_pickup_insert_converted_externally_to_rlds",
+    "austin_sailor_dataset_converted_externally_to_rlds",
+    "austin_sailor_dataset_converted_externally_to_rlds",
+    "toto",
+    "viola",
+    "droid",
+]
 
 
 @dataclass
@@ -92,7 +101,13 @@ class RLDSBatchTransform:
         if not self.predict_stop_token:
             labels[-1] = IGNORE_INDEX
 
-        return dict(pixel_values=pixel_values, pixel_values_aug=pixel_values_aug, input_ids=input_ids, labels=labels, dataset_name=dataset_name)
+        return dict(
+            pixel_values=pixel_values,
+            pixel_values_aug=pixel_values_aug,
+            input_ids=input_ids,
+            labels=labels,
+            dataset_name=dataset_name,
+        )
 
 
 @dataclass
@@ -111,38 +126,48 @@ class RLDSBatchTransformLIBERO_withHis:
         # img = Image.fromarray(rlds_batch["observation"]["image_primary"][0])
         lang = rlds_batch["task"]["language_instruction"].decode().lower()
 
-        randomized_overlap = random.randint(0,1)
+        randomized_overlap = random.randint(0, 1)
         img = Image.fromarray(rlds_batch["observation"]["image_primary"][0])
-        img_k = Image.fromarray(rlds_batch["observation"]["image_primary"][self.window_size-1])
+        img_k = Image.fromarray(rlds_batch["observation"]["image_primary"][self.window_size - 1])
 
         input_img = Image.fromarray(rlds_batch["observation"]["image_primary"][randomized_overlap])
         pixel_values = self.image_transform(input_img)
 
         with torch.no_grad():
             initial_pixel_values = self.image_transform_lam(input_img)
-            target_pixel_values= self.image_transform_lam(Image.fromarray(rlds_batch["observation"]["image_primary"][self.window_size - 1 + randomized_overlap]))
+            target_pixel_values = self.image_transform_lam(
+                Image.fromarray(rlds_batch["observation"]["image_primary"][self.window_size - 1 + randomized_overlap])
+            )
 
-            video = torch.stack([initial_pixel_values, target_pixel_values], dim=0).unsqueeze(0).to(self.action_tokenizer.device)
-            latent_action_idx = self.action_tokenizer.vq_encode(video)['indices'].squeeze()
+            video = (
+                torch.stack([initial_pixel_values, target_pixel_values], dim=0)
+                .unsqueeze(0)
+                .to(self.action_tokenizer.device)
+            )
+            latent_action_idx = self.action_tokenizer.vq_encode(video)["indices"].squeeze()
 
             if randomized_overlap > 0:
                 initial_pixel_values = self.image_transform_lam(img)
-                target_pixel_values= self.image_transform_lam(img_k)
-                video = torch.stack([initial_pixel_values, target_pixel_values], dim=0).unsqueeze(0).to(self.action_tokenizer.device)
-                hist_action_idx = self.action_tokenizer.vq_encode(video)['indices'].squeeze()        
+                target_pixel_values = self.image_transform_lam(img_k)
+                video = (
+                    torch.stack([initial_pixel_values, target_pixel_values], dim=0)
+                    .unsqueeze(0)
+                    .to(self.action_tokenizer.device)
+                )
+                hist_action_idx = self.action_tokenizer.vq_encode(video)["indices"].squeeze()
 
-        action_vocab = [f'<ACT_{i.item()}>' for i in latent_action_idx]   # [ACT_1, ACT_2, ... ACT_K]
+        action_vocab = [f"<ACT_{i.item()}>" for i in latent_action_idx]  # [ACT_1, ACT_2, ... ACT_K]
         # print(action_vocab)
-        action_tokens = ''
-        for i, action in enumerate(action_vocab):
+        action_tokens = ""
+        for _, action in enumerate(action_vocab):
             action_tokens += action
 
         input_prompt = f"What action should the robot take to {lang}?"
         if randomized_overlap > 0:
-            action_vocab = [f'<ACT_{i.item()}>' for i in hist_action_idx]   # [ACT_1, ACT_2, ... ACT_K]
+            action_vocab = [f"<ACT_{i.item()}>" for i in hist_action_idx]  # [ACT_1, ACT_2, ... ACT_K]
 
-            hist_action_tokens = ''
-            for i, action in enumerate(action_vocab):
+            hist_action_tokens = ""
+            for _, action in enumerate(action_vocab):
                 hist_action_tokens += action
 
             input_prompt = f"What action should the robot take to {lang}? History action " + hist_action_tokens
@@ -164,13 +189,19 @@ class RLDSBatchTransformLIBERO_withHis:
         #   =>> IMPORTANT :: IF WE'RE USING HF LLM.forward(..., labels=labels), SHIFTING HAPPENS _INSIDE_ MODEL!
         input_ids, labels = torch.tensor(input_ids), torch.tensor(labels)
 
-
         # [CRITICAL] We do not want to take the loss for anything but the predicted action tokens!
         labels[: -(len(action_vocab) + 1)] = IGNORE_INDEX
         if not self.predict_stop_token:
             labels[-1] = IGNORE_INDEX
 
-        return dict(pixel_values=pixel_values, input_ids=input_ids, labels=labels, actions=rlds_batch["action"][randomized_overlap: self.window_size + randomized_overlap], latent_action_idx=latent_action_idx, dataset_name=dataset_name)
+        return dict(
+            pixel_values=pixel_values,
+            input_ids=input_ids,
+            labels=labels,
+            actions=rlds_batch["action"][randomized_overlap : self.window_size + randomized_overlap],
+            latent_action_idx=latent_action_idx,
+            dataset_name=dataset_name,
+        )
 
 
 @dataclass
@@ -208,14 +239,18 @@ class RLDSBatchTransformLIBERO:
 
         with torch.no_grad():
             initial_pixel_values = self.image_transform_lam(img)
-            target_pixel_values= self.image_transform_lam(img_k)
-            video = torch.stack([initial_pixel_values, target_pixel_values], dim=0).unsqueeze(0).to(self.action_tokenizer.device)
-            latent_action_idx = self.action_tokenizer.vq_encode(video)['indices'].squeeze()
+            target_pixel_values = self.image_transform_lam(img_k)
+            video = (
+                torch.stack([initial_pixel_values, target_pixel_values], dim=0)
+                .unsqueeze(0)
+                .to(self.action_tokenizer.device)
+            )
+            latent_action_idx = self.action_tokenizer.vq_encode(video)["indices"].squeeze()
 
-        action_vocab = [f'<ACT_{i.item()}>' for i in latent_action_idx]   # [ACT_1, ACT_2, ... ACT_K]
+        action_vocab = [f"<ACT_{i.item()}>" for i in latent_action_idx]  # [ACT_1, ACT_2, ... ACT_K]
 
-        action_tokens = ''
-        for i, action in enumerate(action_vocab):
+        action_tokens = ""
+        for _, action in enumerate(action_vocab):
             action_tokens += action
         # print(action_tokens)
 
@@ -236,13 +271,19 @@ class RLDSBatchTransformLIBERO:
         #   =>> IMPORTANT :: IF WE'RE USING HF LLM.forward(..., labels=labels), SHIFTING HAPPENS _INSIDE_ MODEL!
         input_ids, labels = torch.tensor(input_ids), torch.tensor(labels)
 
-
         # [CRITICAL] We do not want to take the loss for anything but the predicted action tokens!
         labels[: -(len(action_vocab) + 1)] = IGNORE_INDEX
         if not self.predict_stop_token:
             labels[-1] = IGNORE_INDEX
 
-        return dict(pixel_values=pixel_values, input_ids=input_ids, labels=labels, actions=rlds_batch["action"], latent_action_idx=latent_action_idx, dataset_name=dataset_name)
+        return dict(
+            pixel_values=pixel_values,
+            input_ids=input_ids,
+            labels=labels,
+            actions=rlds_batch["action"],
+            latent_action_idx=latent_action_idx,
+            dataset_name=dataset_name,
+        )
 
 
 @dataclass
@@ -279,15 +320,18 @@ class RLDSBatchTransformLatentAction:
         with torch.no_grad():
             initial_pixel_values = self.image_transform_lam(img)
             target_pixel_values = self.image_transform_lam(img_k)
-            video = torch.stack([initial_pixel_values, target_pixel_values], dim=0).unsqueeze(0).to(self.action_tokenizer.device)
-            latent_action_idx = self.action_tokenizer.vq_encode(video)['indices'].squeeze()
+            video = (
+                torch.stack([initial_pixel_values, target_pixel_values], dim=0)
+                .unsqueeze(0)
+                .to(self.action_tokenizer.device)
+            )
+            latent_action_idx = self.action_tokenizer.vq_encode(video)["indices"].squeeze()
 
-        action_vocab = [f'<ACT_{i.item()}>' for i in latent_action_idx]   # [ACT_1, ACT_2, ... ACT_K]
+        action_vocab = [f"<ACT_{i.item()}>" for i in latent_action_idx]  # [ACT_1, ACT_2, ... ACT_K]
 
-        action_tokens = ''
-        for i, action in enumerate(action_vocab):
+        action_tokens = ""
+        for _, action in enumerate(action_vocab):
             action_tokens += action
-
 
         # Construct Chat-based Prompt =>> Input is default query + language instruction, output are the action tokens
         prompt_builder = self.prompt_builder_fn("openvla")
@@ -306,16 +350,18 @@ class RLDSBatchTransformLatentAction:
         #   =>> IMPORTANT :: IF WE'RE USING HF LLM.forward(..., labels=labels), SHIFTING HAPPENS _INSIDE_ MODEL!
         input_ids, labels = torch.tensor(input_ids), torch.tensor(labels)
 
-
         # [CRITICAL] We do not want to take the loss for anything but the predicted action tokens!
         labels[: -(len(action_vocab) + 1)] = IGNORE_INDEX
         if not self.predict_stop_token:
             labels[-1] = IGNORE_INDEX
 
-
-        return dict(pixel_values=pixel_values, pixel_values_aug=pixel_values_aug, input_ids=input_ids, labels=labels, dataset_name=dataset_name)
-
-
+        return dict(
+            pixel_values=pixel_values,
+            pixel_values_aug=pixel_values_aug,
+            input_ids=input_ids,
+            labels=labels,
+            dataset_name=dataset_name,
+        )
 
 
 @dataclass
@@ -325,22 +371,25 @@ class RLDSBatchTransformVideo:
     def __call__(self, rlds_batch: Dict[str, Any]) -> Dict[str, Any]:
         """Converts a RLDS batch to the format expected by the OpenVLA collator/models."""
         dataset_name, action = rlds_batch["dataset_name"], np.array(rlds_batch["action"])
-        
+
         lang = rlds_batch["task"]["language_instruction"].decode().lower()
 
-        img = Image.fromarray(rlds_batch["observation"]["image_primary"][0])#.copy()
+        img = Image.fromarray(rlds_batch["observation"]["image_primary"][0])  # .copy()
         initial_pixel_values = self.image_transform(img)
-        
+
         # the frame interval is already tackled in RLDS dataloader
         target_frame_index = -1
-        img_k = Image.fromarray(rlds_batch["observation"]["image_primary"][target_frame_index])#.copy()
+        img_k = Image.fromarray(rlds_batch["observation"]["image_primary"][target_frame_index])  # .copy()
         # print(sum(np.array(img_k) - np.array(img)))
-        target_pixel_values= self.image_transform(img_k)
+        target_pixel_values = self.image_transform(img_k)
 
-        return dict(initial_pixel_values=initial_pixel_values, target_pixel_values=target_pixel_values, 
-                    task_instruction=lang, action=action, dataset_name=dataset_name)
-
-
+        return dict(
+            initial_pixel_values=initial_pixel_values,
+            target_pixel_values=target_pixel_values,
+            task_instruction=lang,
+            action=action,
+            dataset_name=dataset_name,
+        )
 
 
 class RLDSDataset(IterableDataset):
@@ -354,7 +403,7 @@ class RLDSDataset(IterableDataset):
         window_size: int = 10,
         train: bool = True,
         image_aug: bool = False,
-        training_phase: str = 'lam',
+        training_phase: str = "lam",
     ) -> None:
         """Lightweight wrapper around RLDS TFDS Pipeline for use with PyTorch/OpenVLA Data Loaders."""
         self.data_root_dir, self.data_mix, self.batch_transform = data_root_dir, data_mix, batch_transform

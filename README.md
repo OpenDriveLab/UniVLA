@@ -212,6 +212,30 @@ torchrun --standalone --nnodes 1 --nproc-per-node 8 main.py fit \
 > [!NOTE]
 > For pretraining UniVLA only on BridgeV2 or Human (Ego4D) data, please modify ```vla.type``` to ```prism-dinosiglip-224px+mx-bridge(human)``` correspondingly. Detailed setups can be found in ```./prismatic/conf/vla.py```.
 
+The RLDS TFRecord directory passed to `--data_root_dir` should contain the
+`bridge_oxe` dataset in the standard TFDS layout:
+
+```
+/path/to/bridge_v2_rlds/
+    bridge_oxe/
+        1.0.0/
+            dataset_info.json
+            bridge_oxe.tfrecord-00000-of-00005
+            bridge_oxe.tfrecord-00001-of-00005
+            ...
+```
+
+With the files arranged in this structure you can launch training as follows:
+
+```bash
+torchrun --nproc_per_node 8 vla-scripts/train.py \
+    --vla.type prism-dinosiglip-224px+mx-bridge \
+    --data_root_dir /path/to/bridge_v2_rlds \
+    --pretrain_vlm prism-dinosiglip-224px+7b \
+    --lam_path latent_action_model/logs/task_centric_lam_stage2/epoch=0-step=200000.ckpt \
+    --run_root_dir runs
+```
+
 ```bash
 ### Experiment on a 32-GPU cluster
 GPUS_PER_NODE=8  
