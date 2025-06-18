@@ -27,7 +27,8 @@
   - [Pretraining of Generalist Policy](#two-pretraining-of-generalist-policy)
   - [Post-training for Deployment & Evaluations](#three-post-training-for-deployment--evaluations)
     - [Real-world Experiment](#mechanical_arm-real-world-experiment)
-    - [LIBERO Benchmark](#1-libero)
+    - [LIBERO](#1-libero)
+    - [CALVIN](#2-calvin)
 - [:rocket: UniVLA's Performance](#rocket-univlas-performance)
 - [:pencil: Citation](#pencil-citation)
 
@@ -235,6 +236,12 @@ torchrun --nproc_per_node 8 vla-scripts/train.py \
     --lam_path latent_action_model/logs/task_centric_lam_stage2/epoch=0-step=200000.ckpt \
     --run_root_dir runs
 ```
+=======
+The `--pretrain_vlm` argument can be either a local directory containing
+`config.json` and the checkpoint to load or a model name returned by
+`prismatic.available_model_names()`. When a model name (e.g.
+`prism-dinosiglip-224px+7b`) is specified, the weights will be automatically
+downloaded from the Hugging Face Hub.
 
 ```bash
 ### Experiment on a 32-GPU cluster
@@ -316,12 +323,20 @@ python experiments/robot/libero/run_libero_eval.py \
 
 ```bash
 torchrun --standalone --nnodes 1 --nproc-per-node 8 finetune_calvin.py \
-                                 --run_root_dir "calvin_log" \
+                                 --vla_path /path/to/your/univla-7b \
+                                 --lam_path /path/to/your/lam-stage-2.ckpt \
+                                 --calvin_root /path/to/yout/calvin_root_path \
+                                 --max_steps 100000 \
+                                 --batch_size 8 \
+                                 --grad_accumulation_steps 2 \
+                                 --window_size 12 \ 
+                                 --run_root_dir "calvin_log" 
 ```
-Once you finished training and get the action decoder and UniVLA backbone, you can start evaluation with:
+
+Start evaluation on CALVIN:
 
 ```bash
-# Mutli-GPU evaluation is also supported
+# Mutli-GPU evaluation is supported
 torchrun --standalone --nnodes 1 --nproc-per-node 8 experiments/robot/calvin/run_calvin_eval_ddp.py \
     --calvin_root /path/to/yout/calvin_root_path \
     --action_decoder_path /path/to/your/action_decoder_path.pt \

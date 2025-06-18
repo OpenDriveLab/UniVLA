@@ -35,7 +35,7 @@ class TrainConfig:
     vla: VLAConfig = field(
         default_factory=VLAConfig.get_choice_class(VLARegistry.DINOSIGLIP_224PX_MX_BRIDGE.vla_id)
     )
-    pretrain_vlm: str = '/path/to/your/prism-dinosiglip-224px_7b'
+    pretrain_vlm: str = 'prism-dinosiglip-224px+7b'
     lam_path: str = "latent_action_model/logs/task_centric_lam_stage2/epoch=0-step=200000.ckpt"
 
     # LAM setting
