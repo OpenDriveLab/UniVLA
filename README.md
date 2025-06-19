@@ -299,7 +299,7 @@ Once you finished training and get the action decoder and UniVLA backbone, you c
 
 
 ```bash
-# Start evaluation on LIBERO-10
+    --calvin_root /path/to/your/calvin_root_path \
 # [Optional] Install LIBERO dependencies
 pip install -r experiments/robot/libero/libero_requirements.txt
 
