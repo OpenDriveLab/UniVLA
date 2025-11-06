@@ -6,7 +6,7 @@
 
 <div id="top" align="center">
 <p align="center">
-<img src="assets/teaser_univla.png" width="1000px" >
+<img src="assets/univla-teaser_new.png" width="1000px" >
 </p>
 </div>
 
