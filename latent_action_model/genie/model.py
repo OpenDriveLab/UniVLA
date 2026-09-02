@@ -16,6 +16,7 @@ from accelerate import PartialState
 OptimizerCallable = Callable[[Iterable], Optimizer]
 
 from genie.modules import UncontrolledDINOLatentActionModel, ControllableDINOLatentActionModel
+from genie.metrics import codebook_usage
 import logging
 logging.basicConfig(format='%(message)s', level=logging.INFO)
 
@@ -107,10 +108,9 @@ class DINO_LAM(LightningModule):
             loss = loss + q_loss_uncontrol + self.vq_beta * commit_loss_uncontrol
 
         # Compute code usage
-        unique, counts = torch.unique(outputs["indices"], return_counts=True)
-        index_counts = torch.zeros(self.lam_num_latents, dtype=torch.long).cuda()
-        index_counts[unique] = counts
-        code_usage = (index_counts != 0).float().mean()
+        main_codebook = getattr(self.lam, "vq_action", getattr(self.lam, "vq", None))
+        main_num_codes = getattr(main_codebook, "num_latents", self.lam_num_latents)
+        code_usage = codebook_usage(outputs["indices"], main_num_codes)
 
         loss_logs = (
             ("mse_loss", mse_loss),
@@ -120,10 +120,9 @@ class DINO_LAM(LightningModule):
         )
 
         if "indices_uncontrol" in outputs.keys():
-            unique, counts = torch.unique(outputs["indices_uncontrol"], return_counts=True)
-            index_counts = torch.zeros(32, dtype=torch.long).cuda()
-            index_counts[unique] = counts
-            uncontrol_code_usage = (index_counts != 0).float().mean()
+            uncontrol_codebook = getattr(self.lam, "vq", None)
+            uncontrol_num_codes = getattr(uncontrol_codebook, "num_latents", self.lam_num_latents)
+            uncontrol_code_usage = codebook_usage(outputs["indices_uncontrol"], uncontrol_num_codes)
 
             loss_logs = (
                 ("mse_loss", mse_loss),
